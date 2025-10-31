@@ -14,6 +14,17 @@
 #include <windows.h>
 #endif
 
+// Forward declare initialization status trackers
+namespace {
+    bool g_loggerInitialized = false;
+    bool g_dvarPatcherInitialized = false;
+    bool g_hooksInitialized = false;
+}
+
+// Component initialization functions - defined in their respective cpp files
+void InitializeDvarPatcher();  // from dvarpatches.cpp
+void InitializeHooks();        // from hooks.cpp
+
 class Logger {
 public:
     enum class Level { Debug = 0, Info, Warn, Error, Off };
@@ -127,3 +138,34 @@ private:
     std::atomic<int> minLevel_{0};
     bool colorsEnabled_{true};
 };
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
+{
+    switch (reason) {
+        case DLL_PROCESS_ATTACH: {
+            // Initialize logger first
+            if (!g_loggerInitialized) {
+                Logger::instance().init(Logger::Level::Info);
+                g_loggerInitialized = true;
+            }
+
+            // Initialize other components
+            if (!g_dvarPatcherInitialized) {
+                InitializeDvarPatcher();
+                g_dvarPatcherInitialized = true;
+            }
+
+            if (!g_hooksInitialized) {
+                InitializeHooks();
+                g_hooksInitialized = true;
+            }
+
+            Logger::instance().info("CrlyMod: DLL initialized successfully");
+            break;
+        }
+        case DLL_PROCESS_DETACH:
+            Logger::instance().info("CrlyMod: DLL detaching");
+            break;
+    }
+    return TRUE;
+}
