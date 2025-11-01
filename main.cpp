@@ -19,11 +19,13 @@ namespace {
     bool g_loggerInitialized = false;
     bool g_dvarPatcherInitialized = false;
     bool g_hooksInitialized = false;
+    bool g_watermarkInitialized = false;
+    bool g_chatPatcherInitialized = false;
 }
 
-// Component initialization functions - defined in their respective cpp files
-void InitializeDvarPatcher();  // from dvarpatches.cpp
-void InitializeHooks();        // from hooks.cpp
+void InitializeDvarPatcher();  
+void InitializeHooks();        
+void intializeWatermark();   
 
 class Logger {
 public:
@@ -143,28 +145,32 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
 {
     switch (reason) {
         case DLL_PROCESS_ATTACH: {
-            // Initialize logger first
-            if (!g_loggerInitialized) {
-                Logger::instance().init(Logger::Level::Info);
-                g_loggerInitialized = true;
-            }
+            // Do minimal work in DllMain: spawn a worker thread to initialize
+            // components outside the loader lock.
+            CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+                // Initialize logger first
+                if (!g_loggerInitialized) {
+                    Logger::instance().init(Logger::Level::Info);
+                    g_loggerInitialized = true;
+                }
 
-            // Initialize other components
-            if (!g_dvarPatcherInitialized) {
-                InitializeDvarPatcher();
-                g_dvarPatcherInitialized = true;
-            }
+                if (!g_dvarPatcherInitialized) {
+                    InitializeDvarPatcher();
+                    g_dvarPatcherInitialized = true;
+                }
 
-            if (!g_hooksInitialized) {
-                InitializeHooks();
-                g_hooksInitialized = true;
-            }
+                if (!g_hooksInitialized) {
+                    InitializeHooks();
+                    g_hooksInitialized = true;
+                }
 
-            Logger::instance().info("CrlyMod: DLL initialized successfully");
+                Logger::instance().info("[Component/CrlyMod]: DLL initialized successfully");
+                return 0;
+            }, nullptr, 0, nullptr);
             break;
         }
         case DLL_PROCESS_DETACH:
-            Logger::instance().info("[Component/CrlyMod]: DLL attached");
+            Logger::instance().info("[Component/CrlyMod]: DLL detaching");
             break;
     }
     return TRUE;

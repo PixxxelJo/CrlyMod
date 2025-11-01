@@ -44,8 +44,14 @@ static void DisablePhotonChatStrings()
 }
 
 // Exposed initialization function
+// Runs the memory-scan on a separate thread to avoid doing heavy work inside DllMain.
 void InitializeDvarPatcher() {
-    DisablePhotonChatStrings();
+    // Create a thread that runs the scan and then exits.
+    HANDLE h = CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+        DisablePhotonChatStrings();
+        return 0;
+    }, nullptr, 0, nullptr);
+    if (h) CloseHandle(h);
 }
 
 struct PhotonChatDisabler {

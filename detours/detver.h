@@ -8,7 +8,6 @@
 //
 
 #define _USING_V110_SDK71_ 1
-#include "winver.h"
 #if 0
 #include <windows.h>
 #include <detours.h>
