@@ -10,7 +10,7 @@ static void AppendLogA(const char* msg)
 
     char path[MAX_PATH] = {0};
     strcpy_s(path, tempPath);
-    strcat_s(path, "CrlyError.log");
+    strcat_s(path, "CrlyModErrors.log");
 
     FILE* f = nullptr;
     if (fopen_s(&f, path, "a, ccs=UTF-8") == 0 && f) {
