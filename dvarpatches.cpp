@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <cstring>
+#include <iostream>
 
 // This startup patch scans the process memory for occurrences of the literal
 // "PhotonChat" and overwrites them with zero bytes so code that looks up
@@ -31,7 +32,6 @@ static void DisablePhotonChatStrings()
                     if (VirtualProtect(base + i, len, PAGE_READWRITE, &oldProtect)) {
                         // overwrite the literal so lookups fail
                         memset(base + i, 0, len);
-                        // restore protection
                         DWORD tmp;
                         VirtualProtect(base + i, len, oldProtect, &tmp);
                     }
@@ -47,3 +47,9 @@ static void DisablePhotonChatStrings()
 void InitializeDvarPatcher() {
     DisablePhotonChatStrings();
 }
+
+struct PhotonChatDisabler {
+    PhotonChatDisabler() {
+        std::cout << "[Component/DvarPatcher] The Chat is disabled.\n";
+    }
+};

@@ -1,10 +1,6 @@
 #include <windows.h>
 #include <cstring>
 
-// This startup patch scans the process memory for occurrences of the literal
-// "PhotonChat" and overwrites them with zero bytes so code that looks up
-// dvars or features by that exact string will fail to find PhotonChat.
-// Note: keep this minimal and deterministic to avoid runtime side-effects.
 
 static void DisablePhotonChatStrings()
 {

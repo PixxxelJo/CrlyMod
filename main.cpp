@@ -164,7 +164,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
             break;
         }
         case DLL_PROCESS_DETACH:
-            Logger::instance().info("CrlyMod: DLL detaching");
+            Logger::instance().info("[Component/CrlyMod]: DLL attached");
             break;
     }
     return TRUE;
