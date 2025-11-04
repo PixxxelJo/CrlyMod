@@ -1,7 +1,6 @@
 #include <windows.h>
 #include <cstring>
 
-
 static void DisablePhotonChatStrings()
 {
 	const char target[] = "PhotonChat";

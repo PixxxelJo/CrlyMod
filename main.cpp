@@ -21,11 +21,14 @@ namespace {
     bool g_hooksInitialized = false;
     bool g_watermarkInitialized = false;
     bool g_chatPatcherInitialized = false;
+    bool g_errorLoggerInitialized = false;
 }
 
-void InitializeDvarPatcher();  
-void InitializeHooks();        
-void intializeWatermark();   
+void InitializeDvarPatcher();
+void InitializeHooks();
+void intializeWatermark();
+void InitializeChatPatcher();
+#include "crlylog.h"
 
 class Logger {
 public:
@@ -68,8 +71,8 @@ public:
     }
 
     template<typename... Args> void debug(Args&&... a) { log(Level::Debug, std::forward<Args>(a)...); }
-    template<typename... Args> void info(Args&&... a)  { log(Level::Info,  std::forward<Args>(a)...); }
-    template<typename... Args> void warn(Args&&... a)  { log(Level::Warn,  std::forward<Args>(a)...); }
+    template<typename... Args> void info(Args&&... a) { log(Level::Info, std::forward<Args>(a)...); }
+    template<typename... Args> void warn(Args&&... a) { log(Level::Warn, std::forward<Args>(a)...); }
     template<typename... Args> void error(Args&&... a) { log(Level::Error, std::forward<Args>(a)...); }
 
 private:
@@ -96,21 +99,21 @@ private:
 
     const char* levelToString(Level lvl) {
         switch (lvl) {
-            case Level::Debug: return "DEBUG";
-            case Level::Info:  return "INFO";
-            case Level::Warn:  return "WARN";
-            case Level::Error: return "ERROR";
-            default:           return "UNKNOWN";
+        case Level::Debug: return "DEBUG";
+        case Level::Info:  return "INFO";
+        case Level::Warn:  return "WARN";
+        case Level::Error: return "ERROR";
+        default:           return "UNKNOWN";
         }
     }
 
     const char* levelColor(Level lvl) {
         switch (lvl) {
-            case Level::Debug: return "\x1b[36m";
-            case Level::Info:  return "\x1b[32m";
-            case Level::Warn:  return "\x1b[33m";
-            case Level::Error: return "\x1b[31m";
-            default:           return "";
+        case Level::Debug: return "\x1b[36m";
+        case Level::Info:  return "\x1b[32m";
+        case Level::Warn:  return "\x1b[33m";
+        case Level::Error: return "\x1b[31m";
+        default:           return "";
         }
     }
 
@@ -137,41 +140,61 @@ private:
 
     std::mutex mutex_;
     std::ofstream file_;
-    std::atomic<int> minLevel_{0};
-    bool colorsEnabled_{true};
+    std::atomic<int> minLevel_{ 0 };
+    bool colorsEnabled_{ true };
 };
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
 {
     switch (reason) {
-        case DLL_PROCESS_ATTACH: {
-            // Do minimal work in DllMain: spawn a worker thread to initialize
-            // components outside the loader lock.
-            CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
-                // Initialize logger first
-                if (!g_loggerInitialized) {
-                    Logger::instance().init(Logger::Level::Info);
-                    g_loggerInitialized = true;
-                }
+    case DLL_PROCESS_ATTACH: {
+        // Do minimal work in DllMain: spawn a worker thread to initialize
+        // components outside the loader lock.
+        CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
+            // Initialize logger first
+            if (!g_loggerInitialized) {
+                Logger::instance().init(Logger::Level::Info);
+                g_loggerInitialized = true;
+            }
 
-                if (!g_dvarPatcherInitialized) {
-                    InitializeDvarPatcher();
-                    g_dvarPatcherInitialized = true;
-                }
+            if (!g_dvarPatcherInitialized) {
+                InitializeDvarPatcher();
+                g_dvarPatcherInitialized = true;
+            }
 
-                if (!g_hooksInitialized) {
-                    InitializeHooks();
-                    g_hooksInitialized = true;
-                }
+            if (!g_hooksInitialized) {
+                InitializeHooks();
+                g_hooksInitialized = true;
+            }
 
-                Logger::instance().info("[Component/CrlyMod]: DLL initialized successfully");
-                return 0;
+            Logger::instance().info("[Component/CrlyMod]: DLL initialized successfully");
+            return 0;
             }, nullptr, 0, nullptr);
-            break;
-        }
-        case DLL_PROCESS_DETACH:
-            Logger::instance().info("[Component/CrlyMod]: DLL detaching");
-            break;
+        break;
+    }
+    case DLL_PROCESS_DETACH:
+        Logger::instance().info("[Component/CrlyMod]: DLL detaching");
+        break;
     }
     return TRUE;
+}
+
+// Implement CrlyLog bridge. Keep it minimal and safe to call after Logger is
+// initialized in the worker thread. If Logger isn't initialized yet, fall back
+// to OutputDebugString.
+void CrlyLog(const char* component, const char* message) {
+    try {
+        if (g_loggerInitialized) {
+            std::string s = std::string("[Component/") + component + "]: ";
+            s += message;
+            Logger::instance().info(s);
+            return;
+        }
+    }
+    catch (...) {
+        // swallow exceptions during logging to avoid crashing host process
+    }
+    // Fallback
+    std::string fb = std::string("[Component/") + component + "]: " + message;
+    OutputDebugStringA(fb.c_str());
 }

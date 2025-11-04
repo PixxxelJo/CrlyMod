@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <cstring>
 #include <iostream>
+#include "crlylog.h"
 
 // This startup patch scans the process memory for occurrences of the literal
 // "PhotonChat" and overwrites them with zero bytes so code that looks up
@@ -56,6 +57,6 @@ void InitializeDvarPatcher() {
 
 struct PhotonChatDisabler {
     PhotonChatDisabler() {
-        std::cout << "[Component/DvarPatcher] The Chat is disabled.\n";
+        CrlyLog("DvarPatcher", "The Chat is disabled.");
     }
 };

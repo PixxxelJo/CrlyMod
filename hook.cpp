@@ -1,63 +1,74 @@
 #include <windows.h>
-#include <detours.h>
+#include "detours/detours.h"
 #include <cstdio>
+#include "crlylog.h"
 #pragma comment(lib, "detours.lib")
 
 // hook.cpp no longer defines DllMain. Initialization is performed by
 // `main.cpp` which calls `InitializeHooks()` from a dedicated init thread.
 
-typedef BOOL (WINAPI *TargetFuncType)(LPCSTR lpFileName);
+// By default we assume `EntryPoint` has signature: void __cdecl EntryPoint(void)
+// If the real signature differs, update `EntryPointType` and `HookedEntryPoint`
+typedef void (__cdecl *EntryPointType)(void);
 
 // Store original function pointer
-static TargetFuncType g_originalFunc = nullptr;
+static EntryPointType g_originalEntryPoint = nullptr;
 
-// Detour function - replace with your hook logic
-BOOL WINAPI HookFunction(LPCSTR lpFileName) 
+// Our detour which will replace Ext.dll's EntryPoint
+static void __cdecl HookedEntryPoint(void)
 {
-    return g_originalFunc(lpFileName);
+    // Log the call
+    CrlyLog("Hook", "EntryPoint called.");
+
+    // Call original EntryPoint (if present)
+    if (g_originalEntryPoint) {
+        g_originalEntryPoint();
+    }
 }
 
 struct HookInitializer {
     HookInitializer() {
-        // Start transaction
+        // Wait for Ext.dll to be loaded by the host process. This runs in the
+        // worker thread so sleeping is safe.
+        HMODULE hModule = nullptr;
+        for (int i = 0; i < 100 && !hModule; ++i) {
+            hModule = GetModuleHandleA("Ext.dll");
+            if (!hModule) Sleep(50);
+        }
+        if (!hModule) {
+            CrlyLog("Hook", "Failed to find Ext.dll.");
+            return;
+        }
+
+        // Look up the exported EntryPoint
+        FARPROC proc = GetProcAddress(hModule, "EntryPoint");
+        if (!proc) {
+            CrlyLog("Hook", "Ext.dll does not export EntryPoint.");
+            return;
+        }
+
+        g_originalEntryPoint = reinterpret_cast<EntryPointType>(proc);
+
+        // Attach detour using Detours
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
-
-        // Get address of target function
-        HMODULE hModule = GetModuleHandleA("version.dll");
-        if (!hModule) {
-            // version.dll not loaded yet, try loading it
-            hModule = LoadLibraryA("version.dll");
-            if (!hModule) {
-                DetourTransactionAbort();
-                return;
-            }
-        }
-
-        // Replace "TargetFunction" with actual function name you want to hook
-        g_originalFunc = (TargetFuncType)GetProcAddress(hModule, "TargetFunction");
-        if (!g_originalFunc) {
-            DetourTransactionAbort();
+        DetourAttach(reinterpret_cast<PVOID*>(&g_originalEntryPoint), HookedEntryPoint);
+        LONG err = DetourTransactionCommit();
+        if (err != NO_ERROR) {
+            CrlyLog("Hook", "DetourTransactionCommit failed.");
             return;
         }
 
-        // Attach detour
-        DetourAttach(&(PVOID&)g_originalFunc, HookFunction);
-
-        // Commit the transaction
-        LONG error = DetourTransactionCommit();
-        if (error != NO_ERROR) {
-            // Handle error - transaction failed
-            return;
-        }
+        CrlyLog("Hook", "EntryPoint hooked.");
     }
 
     ~HookInitializer() {
-        // Clean up hooks
-        DetourTransactionBegin();
-        DetourUpdateThread(GetCurrentThread());
-        DetourDetach(&(PVOID&)g_originalFunc, HookFunction);
-        DetourTransactionCommit();
+        if (g_originalEntryPoint) {
+            DetourTransactionBegin();
+            DetourUpdateThread(GetCurrentThread());
+            DetourDetach(reinterpret_cast<PVOID*>(&g_originalEntryPoint), HookedEntryPoint);
+            DetourTransactionCommit();
+        }
     }
 };
 
