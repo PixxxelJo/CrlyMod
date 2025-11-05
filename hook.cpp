@@ -77,3 +77,11 @@ struct HookInitializer {
 void InitializeHooks() {
     static HookInitializer hookInit;  // Will construct and initialize hooks
 }
+
+void intializeWatermark()
+{
+}
+
+void InitializeChatPatcher()
+{
+}

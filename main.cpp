@@ -14,7 +14,7 @@
 #include <windows.h>
 #endif
 
-// Forward declare initialization status trackers
+
 namespace {
     bool g_loggerInitialized = false;
     bool g_dvarPatcherInitialized = false;
@@ -58,15 +58,19 @@ public:
         (oss << ... << std::forward<Args>(args));
         const std::string line = oss.str();
 
-        std::lock_guard<std::mutex> lk(mutex_);
-        if (colorsEnabled_) std::cout << levelColor(lvl);
-        std::cout << line << "\n";
-        if (colorsEnabled_) std::cout << colorReset();
-        std::cout.flush();
+        // Use a block to limit the scope of the lock_guard and ensure
+        // the mutex is released before any further code executes.
+        {
+            std::lock_guard<std::mutex> lk(mutex_);
+            if (colorsEnabled_) std::cout << levelColor(lvl);
+            std::cout << line << "\n";
+            if (colorsEnabled_) std::cout << colorReset();
+            std::cout.flush();
 
-        if (file_.is_open()) {
-            file_ << stripAnsi(line) << "\n";
-            file_.flush();
+            if (file_.is_open()) {
+                file_ << stripAnsi(line) << "\n";
+                file_.flush();
+            }
         }
     }
 
@@ -147,7 +151,8 @@ private:
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
 {
     switch (reason) {
-    case DLL_PROCESS_ATTACH: {
+    case DLL_PROCESS_ATTACH:
+    {
         // Do minimal work in DllMain: spawn a worker thread to initialize
         // components outside the loader lock.
         CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
@@ -170,8 +175,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
             Logger::instance().info("[Component/CrlyMod]: DLL initialized successfully");
             return 0;
             }, nullptr, 0, nullptr);
-        break;
     }
+    break;
     case DLL_PROCESS_DETACH:
         Logger::instance().info("[Component/CrlyMod]: DLL detaching");
         break;

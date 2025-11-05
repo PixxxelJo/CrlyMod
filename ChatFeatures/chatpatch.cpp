@@ -1,45 +1,28 @@
 #include <windows.h>
-#include <cstring>
+#include <cstdint>
 
-static void DisablePhotonChatStrings()
+static void DisablePhotonAddresses()
 {
-	const char target[] = "PhotonChat";
-	const SIZE_T len = sizeof(target) - 1;
+    // List of target addresses
+    uintptr_t targets[] = {
+        0x25D1030,
+        0x25D1260
+    };
 
-	SYSTEM_INFO si;
-	GetSystemInfo(&si);
+    for (uintptr_t addr : targets) {
+        DWORD oldProtect;
+        if (VirtualProtect(reinterpret_cast<LPVOID>(addr), 16, PAGE_READWRITE, &oldProtect)) {
+            // Zero out a small memory range (adjust size if needed)
+            memset(reinterpret_cast<void*>(addr), 0, 16);
 
-	unsigned char* addr = static_cast<unsigned char*>(si.lpMinimumApplicationAddress);
-	unsigned char* maxAddr = static_cast<unsigned char*>(si.lpMaximumApplicationAddress);
-	MEMORY_BASIC_INFORMATION mbi;
-
-	while (addr < maxAddr && VirtualQuery(addr, &mbi, sizeof(mbi)) != 0) {
-		if (mbi.State == MEM_COMMIT &&
-			(mbi.Protect & (PAGE_READONLY | PAGE_READWRITE | PAGE_EXECUTE_READ | PAGE_EXECUTE_READWRITE))) {
-			unsigned char* base = static_cast<unsigned char*>(mbi.BaseAddress);
-			SIZE_T regionSize = mbi.RegionSize;
-
-			// simple byte-scan within the region
-			for (SIZE_T i = 0; i + len <= regionSize; ++i) {
-				if (memcmp(base + i, target, len) == 0) {
-					DWORD oldProtect;
-					if (VirtualProtect(base + i, len, PAGE_READWRITE, &oldProtect)) {
-						// overwrite the literal so lookups fail
-						memset(base + i, 0, len);
-						// restore protection
-						DWORD tmp;
-						VirtualProtect(base + i, len, oldProtect, &tmp);
-					}
-				}
-			}
-		}
-
-		addr += mbi.RegionSize;
-	}
+            DWORD tmp;
+            VirtualProtect(reinterpret_cast<LPVOID>(addr), 16, oldProtect, &tmp);
+        }
+    }
 }
 
-// Run at module initialization
+// Run automatically when the DLL or EXE loads
 struct DvarPatcher {
-	DvarPatcher() { DisablePhotonChatStrings(); }
+    DvarPatcher() { DisablePhotonAddresses(); }
 };
 static DvarPatcher g_dvarPatcher;
