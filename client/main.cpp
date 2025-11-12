@@ -14,14 +14,13 @@
 #include <windows.h>
 #endif
 
-
 namespace {
     bool g_loggerInitialized = false;
     bool g_dvarPatcherInitialized = false;
     bool g_hooksInitialized = false;
     bool g_watermarkInitialized = false;
     bool g_chatPatcherInitialized = false;
-    bool g_errorLoggerInitialized = false;
+    bool g_errorLoggerInitialized = true;
 }
 
 void InitializeDvarPatcher();
@@ -58,8 +57,6 @@ public:
         (oss << ... << std::forward<Args>(args));
         const std::string line = oss.str();
 
-        // Use a block to limit the scope of the lock_guard and ensure
-        // the mutex is released before any further code executes.
         {
             std::lock_guard<std::mutex> lk(mutex_);
             if (colorsEnabled_) std::cout << levelColor(lvl);
@@ -153,10 +150,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
     switch (reason) {
     case DLL_PROCESS_ATTACH:
     {
-        // Do minimal work in DllMain: spawn a worker thread to initialize
-        // components outside the loader lock.
+
         CreateThread(nullptr, 0, [](LPVOID) -> DWORD {
-            // Initialize logger first
             if (!g_loggerInitialized) {
                 Logger::instance().init(Logger::Level::Info);
                 g_loggerInitialized = true;
@@ -184,9 +179,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved)
     return TRUE;
 }
 
-// Implement CrlyLog bridge. Keep it minimal and safe to call after Logger is
-// initialized in the worker thread. If Logger isn't initialized yet, fall back
-// to OutputDebugString.
 void CrlyLog(const char* component, const char* message) {
     try {
         if (g_loggerInitialized) {
