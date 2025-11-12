@@ -1,54 +1,85 @@
+// LAN.h
 #pragma once
 #include <string>
+#include <vector>
+#include <unordered_map>
 #include <thread>
-#include <asio.hpp> 
+#include <mutex>
+#include <functional>
+#include <atomic>
 #include <iostream>
+#include <asio.hpp>
 
-class LANClient {
+class LANServer {
 public:
-    LANClient(const std::string& serverIP, unsigned short serverPort)
-        : ioContext_(), socket_(ioContext_), serverIP_(serverIP), serverPort_(serverPort) {}
+    LANServer(unsigned short port)
+        : ioContext_(), acceptor_(ioContext_), port_(port), running_(false) {}
 
-    bool connect() {
-        try {
-            asio::ip::tcp::resolver resolver(ioContext_);
-            auto endpoints = resolver.resolve(serverIP_, std::to_string(serverPort_));
-            asio::connect(socket_, endpoints);
-            std::cout << "Connected to master server at " << serverIP_ << ":" << serverPort_ << "\n";
-            readThread_ = std::thread([this]() { ioContext_.run(); });
-            return true;
-        } catch (std::exception& e) {
-            std::cerr << "Connection failed: " << e.what() << "\n";
-            return false;
-        }
-    }
-
-    void sendMessage(const std::string& message) {
-        asio::write(socket_, asio::buffer(message + "\n"));
-    }
-
-    void readMessages() {
-        auto buffer = std::make_shared<std::vector<char>>(1024);
-        socket_.async_read_some(asio::buffer(*buffer), [this, buffer](std::error_code ec, std::size_t length) {
-            if (!ec) {
-                std::string msg(buffer->data(), length);
-                std::cout << "[Server]: " << msg;
-                readMessages();
-            } else {
-                std::cerr << "Disconnected from server.\n";
-            }
-        });
+    void start() {
+        asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), port_);
+        acceptor_.open(endpoint.protocol());
+        acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+        acceptor_.bind(endpoint);
+        acceptor_.listen();
+        running_ = true;
+        acceptConnections();
+        ioThread_ = std::thread([this]() { ioContext_.run(); });
+        std::cout << "Master server started on port " << port_ << "\n";
     }
 
     void stop() {
+        running_ = false;
         ioContext_.stop();
-        if (readThread_.joinable()) readThread_.join();
+        if (ioThread_.joinable()) ioThread_.join();
+        std::cout << "Master server stopped.\n";
+    }
+
+    void broadcast(const std::string& message) {
+        std::lock_guard<std::mutex> lock(clientMutex_);
+        for (auto& client : clients_) {
+            asio::async_write(*client.second,
+                asio::buffer(message + "\n"),
+                [](std::error_code, std::size_t) {});
+        }
     }
 
 private:
+    void acceptConnections() {
+        auto socket = std::make_shared<asio::ip::tcp::socket>(ioContext_);
+        acceptor_.async_accept(*socket, [this, socket](std::error_code ec) {
+            if (!ec && running_) {
+                std::lock_guard<std::mutex> lock(clientMutex_);
+                std::string id = socket->remote_endpoint().address().to_string();
+                clients_[id] = socket;
+                std::cout << "Client connected: " << id << "\n";
+                readClient(id, socket);
+            }
+            if (running_) acceptConnections();
+        });
+    }
+
+    void readClient(const std::string& id, std::shared_ptr<asio::ip::tcp::socket> socket) {
+        auto buffer = std::make_shared<std::vector<char>>(1024);
+        socket->async_read_some(asio::buffer(*buffer), 
+            [this, id, socket, buffer](std::error_code ec, std::size_t length) {
+                if (!ec) {
+                    std::string message(buffer->data(), length);
+                    std::cout << "[" << id << "]: " << message;
+                    broadcast("[" + id + "]: " + message);
+                    readClient(id, socket);
+                } else {
+                    std::lock_guard<std::mutex> lock(clientMutex_);
+                    clients_.erase(id);
+                    std::cout << "Client disconnected: " << id << "\n";
+                }
+            });
+    }
+
     asio::io_context ioContext_;
-    asio::ip::tcp::socket socket_;
-    std::string serverIP_;
-    unsigned short serverPort_;
-    std::thread readThread_;
+    asio::ip::tcp::acceptor acceptor_;
+    unsigned short port_;
+    std::unordered_map<std::string, std::shared_ptr<asio::ip::tcp::socket>> clients_;
+    std::mutex clientMutex_;
+    std::thread ioThread_;
+    std::atomic<bool> running_;
 };
