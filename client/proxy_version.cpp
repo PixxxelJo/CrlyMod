@@ -1,91 +1,105 @@
-#include <windows.h>
-#include <string>
+#include "proxy_version_base.hpp"
 
-// NOTE: don't forward-declare the exported functions here —
-// the Windows headers already declare them and redeclaring
-// with different attributes can cause "redefinition; different binding" errors.
-// We'll add __declspec(dllexport) on the implementation definitions below.
-
-// Define all function pointer types we need
-typedef DWORD (WINAPI *PFN_GetFileVersionInfoSizeA)(LPCSTR, LPDWORD);
-typedef BOOL (WINAPI *PFN_GetFileVersionInfoA)(LPCSTR, DWORD, DWORD, LPVOID);
-typedef BOOL (WINAPI *PFN_VerQueryValueA)(LPCVOID, LPCSTR, LPVOID*, PUINT);
-typedef DWORD (WINAPI *PFN_GetFileVersionInfoSizeW)(LPCWSTR, LPDWORD);
-typedef BOOL (WINAPI *PFN_GetFileVersionInfoW)(LPCWSTR, DWORD, DWORD, LPVOID);
-typedef BOOL (WINAPI *PFN_VerQueryValueW)(LPCVOID, LPCWSTR, LPVOID*, PUINT);
-
-// Our function pointers to the real DLL functions
-static HMODULE g_real = nullptr;
-static PFN_GetFileVersionInfoSizeA real_GetFileVersionInfoSizeA = nullptr;
-static PFN_GetFileVersionInfoA real_GetFileVersionInfoA = nullptr;
-static PFN_VerQueryValueA real_VerQueryValueA = nullptr;
-static PFN_GetFileVersionInfoSizeW real_GetFileVersionInfoSizeW = nullptr;
-static PFN_GetFileVersionInfoW real_GetFileVersionInfoW = nullptr;
-static PFN_VerQueryValueW real_VerQueryValueW = nullptr;
-
-BOOL LoadRealVersion()
-{
-    if (g_real) return TRUE;
-    
-    char sysdir[MAX_PATH];
-    UINT n = GetSystemDirectoryA(sysdir, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) return FALSE;
-    
-    std::string path = std::string(sysdir) + "\\version.dll";
-    g_real = LoadLibraryA(path.c_str());
-    if (!g_real) return FALSE;
-    
-    // Load all function pointers
-    real_GetFileVersionInfoSizeA = (PFN_GetFileVersionInfoSizeA)GetProcAddress(g_real, "GetFileVersionInfoSizeA");
-    real_GetFileVersionInfoA = (PFN_GetFileVersionInfoA)GetProcAddress(g_real, "GetFileVersionInfoA");
-    real_VerQueryValueA = (PFN_VerQueryValueA)GetProcAddress(g_real, "VerQueryValueA");
-    real_GetFileVersionInfoSizeW = (PFN_GetFileVersionInfoSizeW)GetProcAddress(g_real, "GetFileVersionInfoSizeW");
-    real_GetFileVersionInfoW = (PFN_GetFileVersionInfoW)GetProcAddress(g_real, "GetFileVersionInfoW");
-    real_VerQueryValueW = (PFN_VerQueryValueW)GetProcAddress(g_real, "VerQueryValueW");
-    
-    return TRUE;
-}
-
-// Implement all the exports. Use C linkage and ensure each definition is
-// exported with __declspec(dllexport) to avoid linkage mismatches with the
-// Windows headers.
 extern "C" {
+	BOOL PROXY_API GetFileVersionInfoA_ZP(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoA_ZP)>("version.dll", "GetFileVersionInfoA");
+		return func(lptstrFilename, dwHandle, dwLen, lpData);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoA, 16, 1))
 
-DWORD WINAPI GetFileVersionInfoSizeA(LPCSTR lptstrFilename, LPDWORD lpdwHandle)
-{
-    if (!LoadRealVersion() || !real_GetFileVersionInfoSizeA) return 0;
-    return real_GetFileVersionInfoSizeA(lptstrFilename, lpdwHandle);
+	BOOL PROXY_API GetFileVersionInfoByHandle_ZP(DWORD dwFlags, HANDLE hFile, LPVOID* lplpData, PDWORD pdwLen) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoByHandle_ZP)>("version.dll", "GetFileVersionInfoByHandle");
+		return func(dwFlags, hFile, lplpData, pdwLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoByHandle, 16, 2))
+	
+	BOOL PROXY_API GetFileVersionInfoExA_ZP(DWORD dwFlags, LPCSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoExA_ZP)>("version.dll", "GetFileVersionInfoExA");
+		return func(dwFlags, lpwstrFilename, dwHandle, dwLen, lpData);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoExA, 20, 3))
+	
+	BOOL PROXY_API GetFileVersionInfoExW_ZP(DWORD dwFlags, LPCWSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoExW_ZP)>("version.dll", "GetFileVersionInfoExW");
+		return func(dwFlags, lpwstrFilename, dwHandle, dwLen, lpData);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoExW, 20, 4))
+	
+	DWORD PROXY_API GetFileVersionInfoSizeA_ZP(LPCSTR lptstrFilename, LPDWORD lpdwHandle) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoSizeA_ZP)>("version.dll", "GetFileVersionInfoSizeA");
+		return func(lptstrFilename, lpdwHandle);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoSizeA, 8, 5))
+	
+	DWORD PROXY_API GetFileVersionInfoSizeExA_ZP(DWORD dwFlags, LPCSTR lpwstrFilename, LPDWORD lpdwHandle) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoSizeExA_ZP)>("version.dll", "GetFileVersionInfoSizeExA");
+		return func(dwFlags, lpwstrFilename, lpdwHandle);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoSizeExA, 12, 6))
+	
+	DWORD PROXY_API GetFileVersionInfoSizeExW_ZP(DWORD dwFlags, LPCWSTR lpwstrFilename, LPDWORD lpdwHandle) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoSizeExW_ZP)>("version.dll", "GetFileVersionInfoSizeExW");
+		return func(dwFlags, lpwstrFilename, lpdwHandle);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoSizeExW, 12, 7))
+	
+	DWORD PROXY_API GetFileVersionInfoSizeW_ZP(LPCWSTR lptstrFilename, LPDWORD lpdwHandle) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoSizeW_ZP)>("version.dll", "GetFileVersionInfoSizeW");
+		return func(lptstrFilename, lpdwHandle);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoSizeW, 8, 8))
+	
+	BOOL PROXY_API GetFileVersionInfoW_ZP(LPCWSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData) {
+		static auto func = proxy::get_export<decltype(&GetFileVersionInfoW_ZP)>("version.dll", "GetFileVersionInfoW");
+		return func(lptstrFilename, dwHandle, dwLen, lpData);
+	}
+#	pragma comment(linker, PROXY_EXPORT(GetFileVersionInfoW, 16, 9))
+	
+	DWORD PROXY_API VerFindFileA_ZP(DWORD uFlags, LPCSTR szFileName, LPCSTR szWinDir, LPCSTR szAppDir, LPSTR szCurDir, PUINT puCurDirLen, LPSTR szDestDir, PUINT puDestDirLen) {
+		static auto func = proxy::get_export<decltype(&VerFindFileA_ZP)>("version.dll", "VerFindFileA");
+		return func(uFlags, szFileName, szWinDir, szAppDir, szCurDir, puCurDirLen, szDestDir, puDestDirLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerFindFileA, 32, 10))
+	
+	DWORD PROXY_API VerFindFileW_ZP(DWORD uFlags, LPCWSTR szFileName, LPCWSTR szWinDir, LPCWSTR szAppDir, LPWSTR szCurDir, PUINT puCurDirLen, LPWSTR szDestDir, PUINT puDestDirLen) {
+		static auto func = proxy::get_export<decltype(&VerFindFileW_ZP)>("version.dll", "VerFindFileW");
+		return func(uFlags, szFileName, szWinDir, szAppDir, szCurDir, puCurDirLen, szDestDir, puDestDirLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerFindFileW, 32, 11))
+	
+	DWORD PROXY_API VerInstallFileA_ZP(DWORD uFlags, LPCSTR szSrcFileName, LPCSTR szDestFileName, LPCSTR szSrcDir, LPCSTR szDestDir, LPCSTR szCurDir, LPSTR szTmpFile, PUINT puTmpFileLen) {
+		static auto func = proxy::get_export<decltype(&VerInstallFileA_ZP)>("version.dll", "VerInstallFileA");
+		return func(uFlags, szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir, szTmpFile, puTmpFileLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerInstallFileA, 32, 12))
+	
+	DWORD PROXY_API VerInstallFileW_ZP(DWORD uFlags, LPCWSTR szSrcFileName, LPCWSTR szDestFileName, LPCWSTR szSrcDir, LPCWSTR szDestDir, LPCWSTR szCurDir, LPWSTR szTmpFile, PUINT puTmpFileLen) {
+		static auto func = proxy::get_export<decltype(&VerInstallFileW_ZP)>("version.dll", "VerInstallFileW");
+		return func(uFlags, szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir, szTmpFile, puTmpFileLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerInstallFileW, 32, 13))
+	
+	DWORD PROXY_API VerLanguageNameA_ZP(DWORD wLang, LPSTR szLang, DWORD cchLang) {
+		static auto func = proxy::get_export<decltype(&VerLanguageNameA_ZP)>("version.dll", "VerLanguageNameA");
+		return func(wLang, szLang, cchLang);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerLanguageNameA, 12, 14))
+	
+	DWORD PROXY_API VerLanguageNameW_ZP(DWORD wLang, LPWSTR szLang, DWORD cchLang) {
+		static auto func = proxy::get_export<decltype(&VerLanguageNameW_ZP)>("version.dll", "VerLanguageNameW");
+		return func(wLang, szLang, cchLang);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerLanguageNameW, 12, 15))
+	
+	BOOL PROXY_API VerQueryValueA_ZP(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID* lplpBuffer, PUINT puLen) {
+		static auto func = proxy::get_export<decltype(&VerQueryValueA_ZP)>("version.dll", "VerQueryValueA");
+		return func(pBlock, lpSubBlock, lplpBuffer, puLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerQueryValueA, 16, 16))
+	
+	BOOL PROXY_API VerQueryValueW_ZP(LPCVOID pBlock, LPCWSTR lpSubBlock, LPVOID* lplpBuffer, PUINT puLen) {
+		static auto func = proxy::get_export<decltype(&VerQueryValueW_ZP)>("version.dll", "VerQueryValueW");
+		return func(pBlock, lpSubBlock, lplpBuffer, puLen);
+	}
+#	pragma comment(linker, PROXY_EXPORT(VerQueryValueW, 16, 17))
 }
-
-BOOL WINAPI GetFileVersionInfoA(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData)
-{
-    if (!LoadRealVersion() || !real_GetFileVersionInfoA) return FALSE;
-    return real_GetFileVersionInfoA(lptstrFilename, dwHandle, dwLen, lpData);
-}
-
-BOOL WINAPI VerQueryValueA(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID* lplpBuffer, PUINT puLen)
-{
-    if (!LoadRealVersion() || !real_VerQueryValueA) return FALSE;
-    return real_VerQueryValueA(pBlock, lpSubBlock, lplpBuffer, puLen);
-}
-
-DWORD WINAPI GetFileVersionInfoSizeW(LPCWSTR lptstrFilename, LPDWORD lpdwHandle)
-{
-    if (!LoadRealVersion() || !real_GetFileVersionInfoSizeW) return 0;
-    return real_GetFileVersionInfoSizeW(lptstrFilename, lpdwHandle);
-}
-
-BOOL WINAPI GetFileVersionInfoW(LPCWSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData)
-{
-    if (!LoadRealVersion() || !real_GetFileVersionInfoW) return FALSE;
-    return real_GetFileVersionInfoW(lptstrFilename, dwHandle, dwLen, lpData);
-}
-
-BOOL WINAPI VerQueryValueW(LPCVOID pBlock, LPCWSTR lpSubBlock, LPVOID* lplpBuffer, PUINT puLen)
-{
-    if (!LoadRealVersion() || !real_VerQueryValueW) return FALSE;
-    return real_VerQueryValueW(pBlock, lpSubBlock, lplpBuffer, puLen);
-}
-
-} // extern "C"
-
